@@ -1,0 +1,702 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Prototype Profesional V3.1 - Penggajian & Absensi (PT CCP)</title>
+
+  <!-- CDN: Bootstrap, FontAwesome, Chart.js -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+  <style>
+    :root{--sidebar-width:250px;--accent:#0d6efd}
+    body{font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial; background:#f6f7fb;}
+    .sidebar{width:var(--sidebar-width);position:fixed;left:0;top:0;bottom:0;background:#0b1220;color:#fff;padding:20px;overflow:auto}
+    .sidebar .brand{font-weight:700;font-size:16px}
+    .nav-link{color:rgba(255,255,255,0.9);cursor:pointer}
+    .nav-link.active{background:rgba(255,255,255,0.06);border-radius:8px;color:#fff}
+    .content{margin-left:var(--sidebar-width);padding:28px}
+    .card{border-radius:12px;box-shadow:0 8px 24px rgba(13,20,37,0.06)}
+    .small-muted{color:#6c757d;font-size:13px}
+    .float-action{position:fixed;right:24px;bottom:24px;z-index:999}
+    .att-hadir{background:rgba(16,185,129,0.08)}
+    .att-izin{background:rgba(250,204,21,0.06)}
+    .att-sakit{background:rgba(255,159,67,0.06)}
+    .att-alpha{background:rgba(239,68,68,0.06)}
+    .mono{font-family:monospace}
+    @media (max-width:900px){.sidebar{display:none}.content{margin-left:0;padding:12px}}
+  </style>
+</head>
+<body>
+  <div class="sidebar d-flex flex-column">
+    <div class="brand mb-2"><i class="fa-solid fa-building-columns me-2"></i>PT Citra Cianjur Prima</div>
+    <div class="small-muted mb-3">Prototype Profesional v3.1 — Penggajian & Absensi</div>
+    <nav class="nav flex-column">
+      <a class="nav-link active mb-1" data-target="dashboard"><i class="fa-solid fa-gauge me-2"></i>Dashboard</a>
+      <a class="nav-link mb-1" data-target="employees"><i class="fa-solid fa-users me-2"></i>Data Karyawan</a>
+      <a class="nav-link mb-1" data-target="attendance"><i class="fa-solid fa-calendar-check me-2"></i>Absensi</a>
+      <a class="nav-link mb-1" data-target="payroll"><i class="fa-solid fa-money-bill-wave me-2"></i>Penggajian</a>
+      <a class="nav-link mt-3" data-target="about"><i class="fa-solid fa-circle-info me-2"></i>Tentang</a>
+    </nav>
+    <div class="mt-auto small-muted">Data tersimpan di browser (localStorage). Gunakan fitur Print Slip untuk laporan.</div>
+  </div>
+
+  <div class="content">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h4 class="mb-0">Prototype Profesional V3.1</h4>
+        <div class="small-muted">Sistem Informasi Penggajian terintegrasi Absensi — versi final untuk demo</div>
+      </div>
+      <div class="d-flex gap-2">
+        <button id="btnReset" class="btn btn-outline-secondary btn-sm">Reset Data</button>
+        <button id="btnHelp" class="btn btn-outline-info btn-sm">Petunjuk</button>
+      </div>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="viewDashboard" class="view">
+      <div class="row g-3">
+        <div class="col-lg-8">
+          <div class="card p-3 mb-3">
+            <div class="d-flex justify-content-between">
+              <div><strong>Ringkasan Sistem</strong><div class="small-muted">Statistik & grafik ringkas</div></div>
+              <div class="text-end">
+                <div class="small-muted">Total Karyawan</div>
+                <div id="statEmployees" class="h5 mb-0">0</div>
+              </div>
+            </div>
+
+            <div class="row mt-3">
+              <div class="col-md-6">
+                <canvas id="chartEmployees" height="140"></canvas>
+              </div>
+              <div class="col-md-6">
+                <canvas id="chartPayrollVsAttend" height="140"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <div class="card p-3">
+            <strong>Riwayat Penggajian Terbaru</strong>
+            <div class="table-responsive mt-2">
+              <table class="table table-hover">
+                <thead><tr><th>ID</th><th>Karyawan</th><th>Periode</th><th class="text-end">Total (Rp)</th><th></th></tr></thead>
+                <tbody id="tblRecentPayroll"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-4">
+          <div class="card p-3 mb-3">
+            <strong>Quick Actions</strong>
+            <div class="d-grid gap-2 mt-2">
+              <button class="btn btn-primary" id="actAddEmployee"><i class="fa-solid fa-user-plus me-2"></i>Tambah Karyawan</button>
+              <button class="btn btn-outline-primary" id="actAddAttendance"><i class="fa-solid fa-calendar-plus me-2"></i>Tambah Absensi</button>
+              <button class="btn btn-outline-secondary" id="actPayroll"><i class="fa-solid fa-calculator me-2"></i>Menu Penggajian</button>
+            </div>
+          </div>
+
+          <div class="card p-3">
+            <strong>Top 5 (Total Gaji)</strong>
+            <ol id="topFive" class="ps-3 mt-2 mb-0 small-muted"></ol>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data Karyawan -->
+    <div id="viewEmployees" class="view" style="display:none">
+      <div class="card p-3 mb-3">
+        <div class="d-flex justify-content-between align-items-center">
+          <strong>Daftar Karyawan</strong>
+          <div><button id="btnNewEmployee" class="btn btn-sm btn-primary"><i class="fa-solid fa-user-plus me-1"></i>Tambah</button></div>
+        </div>
+
+        <div class="table-responsive mt-2">
+          <table class="table table-striped" id="tblEmployees">
+            <thead><tr><th>ID</th><th>NIK</th><th>Nama</th><th>Jabatan</th><th class="text-end">Gaji Pokok (Rp)</th><th>Aksi</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Absensi -->
+    <div id="viewAttendance" class="view" style="display:none">
+      <div class="card p-3 mb-3">
+        <div class="d-flex justify-content-between align-items-center">
+          <strong>Absensi Harian</strong>
+          <div><button id="btnNewAttendance" class="btn btn-sm btn-primary"><i class="fa-solid fa-calendar-plus me-1"></i>Tambah</button></div>
+        </div>
+
+        <form id="filterAttendance" class="row g-2 mt-3">
+          <div class="col-md-4"><input type="month" id="attMonth" class="form-control"></div>
+          <div class="col-md-4"><select id="attFilterEmployee" class="form-select"><option value="">Semua Karyawan</option></select></div>
+          <div class="col-md-4 text-end"><button type="button" id="btnFilterAttendance" class="btn btn-outline-secondary">Terapkan</button></div>
+        </form>
+
+        <div class="table-responsive mt-3">
+          <table class="table" id="tblAttendance">
+            <thead><tr><th>Tanggal</th><th>Karyawan</th><th>Masuk</th><th>Keluar</th><th>Status</th><th>Aksi</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card p-3">
+        <strong>Rekap Kehadiran (Periode Terpilih)</strong>
+        <div id="attendanceSummary" class="mt-2 small-muted"></div>
+      </div>
+    </div>
+
+    <!-- Payroll -->
+    <div id="viewPayroll" class="view" style="display:none">
+      <div class="card p-3">
+        <strong>Penggajian — Form Terintegrasi</strong>
+        <div class="small-muted mb-2">Pilih karyawan dari daftar; ID & data terkait otomatis terisi.</div>
+
+        <form id="formPayroll" class="row g-3 align-items-end">
+          <div class="col-md-4">
+            <label class="form-label">Karyawan</label>
+            <select id="selectEmployee" class="form-select" required>
+              <option value="">-- Pilih Karyawan --</option>
+            </select>
+          </div>
+
+          <div class="col-md-2">
+            <label class="form-label">ID</label>
+            <input id="fieldEmpId" class="form-control" readonly>
+          </div>
+
+          <div class="col-md-3">
+            <label class="form-label">Periode (YYYY-MM)</label>
+            <input id="payPeriod" class="form-control" placeholder="2025-05" required>
+          </div>
+
+          <div class="col-md-3">
+            <label class="form-label">Tanggal Bayar</label>
+            <input id="payDate" type="date" class="form-control" value="">
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label">Gaji Pokok (Rp)</label>
+            <input id="fieldSalary" type="number" class="form-control" readonly>
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label">Upah Harian (Rp)</label>
+            <input id="fieldDaily" type="number" class="form-control" readonly>
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label">Jumlah Hadir (hari)</label>
+            <input id="fieldDays" type="number" class="form-control" readonly>
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label">Tunjangan Jabatan (Rp)</label>
+            <input id="fieldAllowance" type="number" class="form-control" value="0">
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label">Tunjangan Lain (Rp)</label>
+            <input id="fieldAllowanceOther" type="number" class="form-control" value="0">
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label">Lembur (jam)</label>
+            <input id="fieldOvertime" type="number" class="form-control" value="0">
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label">BPJS (Rp) — input manual</label>
+            <input id="fieldBPJS" type="number" class="form-control" value="0">
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label">Asuransi (Rp) — input manual</label>
+            <input id="fieldInsurance" type="number" class="form-control" value="0">
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label">Potongan Lain (Rp)</label>
+            <input id="fieldDeduction" type="number" class="form-control" value="0">
+          </div>
+
+          <div class="col-12 text-end">
+            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-calculator me-1"></i>Hitung & Simpan Penggajian</button>
+            <button type="button" id="btnPreviewCalc" class="btn btn-outline-secondary ms-2">Preview Perhitungan</button>
+          </div>
+        </form>
+
+        <div class="mt-4 card p-3">
+          <strong>Ringkasan Perhitungan (Preview)</strong>
+          <div id="payPreview" class="mt-2 small-muted">Belum ada perhitungan.</div>
+        </div>
+
+        <div class="mt-4 card p-3">
+          <strong>Rekap Absensi (Periode)</strong>
+          <div id="payAttendanceTable" class="table-responsive mt-2 small-muted">Pilih karyawan dan periode untuk melihat rekap absensi.</div>
+        </div>
+
+        <div class="mt-4">
+          <strong>Riwayat Penggajian</strong>
+          <div class="table-responsive mt-2">
+            <table class="table" id="tblPayrollHistory">
+              <thead><tr><th>ID</th><th>Karyawan</th><th>Periode</th><th class="text-end">Total (Rp)</th><th></th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- About -->
+    <div id="viewAbout" class="view" style="display:none">
+      <div class="card p-3">
+        <strong>Tentang Prototype Profesional V3.1</strong>
+        <p class="small-muted">Versi final: perbaikan render absensi, rekap kehadiran, dashboard payroll vs attend, slip berisi rekap kehadiran. Data demo disimpan di localStorage browser.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Floating add -->
+  <div class="float-action">
+    <button id="floatAdd" class="btn btn-primary btn-lg rounded-circle"><i class="fa-solid fa-plus"></i></button>
+  </div>
+
+  <!-- Modals -->
+  <div class="modal fade" id="modalEmployee" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <form id="formEmployee" class="modal-form">
+      <div class="modal-header"><h5 class="modal-title">Tambah / Edit Karyawan</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="mb-2"><label class="form-label">ID (unik)</label><input id="empId" class="form-control" required></div>
+        <div class="mb-2"><label class="form-label">NIK</label><input id="empNIK" class="form-control"></div>
+        <div class="mb-2"><label class="form-label">Nama</label><input id="empName" class="form-control" required></div>
+        <div class="mb-2"><label class="form-label">Jabatan</label><input id="empJob" class="form-control" required></div>
+        <div class="mb-2"><label class="form-label">Gaji Pokok (Rp)</label><input id="empSalary" type="number" class="form-control" required></div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button><button type="submit" class="btn btn-primary">Simpan</button></div>
+    </form>
+  </div></div></div>
+
+  <div class="modal fade" id="modalAttendance" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <form id="formAttendance" class="modal-form">
+      <div class="modal-header"><h5 class="modal-title">Tambah Absensi</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="mb-2"><label class="form-label">Tanggal</label><input id="attDateInput" type="date" class="form-control" required></div>
+        <div class="mb-2"><label class="form-label">Karyawan</label><select id="attEmployeeSelect" class="form-select" required></select></div>
+        <div class="mb-2 row">
+          <div class="col"><label class="form-label">Jam Masuk</label><input id="attInInput" type="time" class="form-control"></div>
+          <div class="col"><label class="form-label">Jam Keluar</label><input id="attOutInput" type="time" class="form-control"></div>
+        </div>
+        <div class="mb-2"><label class="form-label">Status</label>
+          <select id="attStatusInput" class="form-select">
+            <option value="Hadir">Hadir</option>
+            <option value="Izin">Izin</option>
+            <option value="Sakit">Sakit</option>
+            <option value="Alpha">Alpha</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button><button type="submit" class="btn btn-primary">Simpan</button></div>
+    </form>
+  </div></div></div>
+
+  <div class="modal fade" id="modalSlip" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Slip Gaji</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body" id="modalSlipBody"></div>
+    <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button><button id="btnPrintSlip" class="btn btn-primary">Print Slip</button></div>
+  </div></div></div>
+
+  <!-- Toast -->
+  <div class="position-fixed bottom-0 end-0 p-3" style="z-index:12000">
+    <div id="toast" class="toast align-items-center text-bg-primary border-0" role="alert" aria-live="polite"><div class="d-flex"><div class="toast-body" id="toastMsg"></div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div></div>
+  </div>
+
+  <!-- CDN Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <!-- App Script -->
+  <script>
+    // STORAGE & initial data
+    const STORAGE_KEY = 'ccp_prof_v3_1';
+    const initialState = {
+      employees: [
+        {id:'K001', nik:'19880101', name:'Asep Santoso', job:'Teknisi', salary:3500000},
+        {id:'K002', nik:'19900202', name:'Siti Aminah', job:'Admin', salary:3000000},
+        {id:'K003', nik:'19950315', name:'Budi Santoso', job:'Supervisor', salary:4500000}
+      ],
+      attendance: [], // {id, date, empId, in, out, status}
+      payrolls: [] // {id, empId, period, date, base, daily, days, allowance, allowanceOther, overtime, bpjs, insurance, deduction, gross, total}
+    };
+    let state = JSON.parse(localStorage.getItem(STORAGE_KEY)) || initialState;
+    function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+    function toast(msg){ document.getElementById('toastMsg').textContent = msg; new bootstrap.Toast(document.getElementById('toast')).show(); }
+    const $ = s => document.querySelector(s);
+    const $$ = s => document.querySelectorAll(s);
+
+    // Navigation
+    $$('.nav-link').forEach(el => el.addEventListener('click', (e)=>{
+      $$('.nav-link').forEach(x=>x.classList.remove('active'));
+      el.classList.add('active');
+      showView(el.dataset.target);
+    }));
+    function showView(view){
+      const views = ['dashboard','employees','attendance','payroll','about'];
+      views.forEach(v => document.getElementById('view' + capitalize(v)).style.display = 'none');
+      document.getElementById('view' + capitalize(view)).style.display = 'block';
+      if(view === 'dashboard') renderDashboard();
+      if(view === 'employees') renderEmployees();
+      if(view === 'attendance') renderAttendance($('#attMonth').value);
+      if(view === 'payroll') renderPayroll();
+    }
+    function capitalize(s){ return s.charAt(0).toUpperCase() + s.slice(1); }
+
+    // INITIAL RENDER
+    document.addEventListener('DOMContentLoaded', ()=>{
+      $('#payDate').value = new Date().toISOString().slice(0,10);
+      // set attMonth to current month
+      const now = new Date(); $('#attMonth').value = now.toISOString().slice(0,7);
+      renderEmployees();
+      renderAttendance($('#attMonth').value);
+      renderPayroll();
+      renderDashboard();
+    });
+
+    // DASHBOARD CHARTS
+    let chartEmployees = null, chartPayrollVsAttend = null;
+    function renderDashboard(){
+      $('#statEmployees').textContent = state.employees.length;
+
+      // Employees by job
+      const jobs = [...new Set(state.employees.map(e=>e.job))];
+      const counts = jobs.map(j=> state.employees.filter(e=>e.job===j).length);
+
+      if(chartEmployees) chartEmployees.destroy();
+      chartEmployees = new Chart($('#chartEmployees'), {
+        type: 'doughnut',
+        data: { labels: jobs, datasets: [{ data: counts, backgroundColor: ['#0d6efd','#198754','#fd7e14','#6f42c1'] }]},
+        options: { plugins:{ legend:{ position:'bottom' } } }
+      });
+
+      // Payroll totals per period (last 6) and avg attendance
+      const payrollTotals = {}; const attendCounts = {};
+      state.payrolls.forEach(p => { payrollTotals[p.period] = (payrollTotals[p.period]||0) + p.total; });
+      state.attendance.forEach(a => { const m = a.date.slice(0,7); if(a.status === 'Hadir'){ attendCounts[m] = (attendCounts[m]||0) + 1; }});
+      const periods = Object.keys(payrollTotals).sort().slice(-6);
+      // ensure periods from attendance also included
+      Object.keys(attendCounts).sort().slice(-6).forEach(p=> { if(!periods.includes(p)) periods.push(p); });
+      const labels = periods.length? periods : ['-'];
+      const payrollVals = labels.map(l => payrollTotals[l] || 0);
+      const avgAttendVals = labels.map(l => {
+        // average attendance per employee that month
+        const totalAttend = attendCounts[l] || 0;
+        const empCount = state.employees.length || 1;
+        return Math.round((totalAttend / empCount) * 10) / 10; // avg hadir per employee
+      });
+
+      if(chartPayrollVsAttend) chartPayrollVsAttend.destroy();
+      chartPayrollVsAttend = new Chart($('#chartPayrollVsAttend'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            { type:'bar', label:'Total Gaji (Rp)', data: payrollVals, yAxisID:'y' },
+            { type:'line', label:'Avg Hadir (hari)', data: avgAttendVals, yAxisID:'y1', tension:0.3, borderColor:'#198754', backgroundColor:'#198754' }
+          ]
+        },
+        options:{
+          scales:{
+            y: { position:'left', ticks:{ callback: v => v >= 1000 ? v.toLocaleString('id-ID') : v } },
+            y1: { position:'right', grid:{ drawOnChartArea:false }, beginAtZero:true }
+          }
+        }
+      });
+
+      // Recent payroll
+      const tbody = $('#tblRecentPayroll'); tbody.innerHTML = '';
+      state.payrolls.slice(-6).reverse().forEach(p=>{
+        const emp = state.employees.find(e=>e.id===p.empId) || {name:'-'};
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${p.id}</td><td>${emp.name}</td><td>${p.period}</td><td class="text-end">${formatMoney(p.total)}</td><td><button class="btn btn-sm btn-outline-primary" onclick="openSlip('${p.id}')">Slip</button></td>`;
+        tbody.appendChild(tr);
+      });
+
+      // Top 5
+      const totals = {}; state.payrolls.forEach(p => { totals[p.empId] = (totals[p.empId]||0) + p.total; });
+      const top = Object.entries(totals).map(([id,sum])=>({id,sum})).sort((a,b)=>b.sum-a.sum).slice(0,5);
+      $('#topFive').innerHTML = top.length ? top.map(t=>`<li>${(state.employees.find(e=>e.id===t.id)||{name:'-'}).name} — Rp ${formatMoney(t.sum)}</li>`).join('') : '<li class="small-muted">Belum ada data</li>';
+    }
+
+    // EMPLOYEES
+    const empModal = new bootstrap.Modal(document.getElementById('modalEmployee'));
+    $('#btnNewEmployee').addEventListener('click', ()=>{ clearEmployeeForm(); empModal.show(); });
+    $('#actAddEmployee').addEventListener('click', ()=>{ clearEmployeeForm(); empModal.show(); });
+    $('#floatAdd').addEventListener('click', ()=>{ clearEmployeeForm(); empModal.show(); });
+
+    function clearEmployeeForm(){
+      $('#empId').value = ''; $('#empNIK').value = ''; $('#empName').value = ''; $('#empJob').value = ''; $('#empSalary').value = '';
+    }
+    $('#formEmployee').addEventListener('submit', (e)=>{
+      e.preventDefault();
+      const id = $('#empId').value.trim(); if(!id){ alert('ID harus diisi'); return; }
+      const nik = $('#empNIK').value.trim(); const name = $('#empName').value.trim(); const job = $('#empJob').value.trim(); const salary = parseInt($('#empSalary').value || 0);
+      const exists = state.employees.find(em => em.id === id);
+      if(exists){ exists.nik = nik; exists.name = name; exists.job = job; exists.salary = salary; }
+      else { state.employees.push({id, nik, name, job, salary}); }
+      saveState(); empModal.hide(); renderEmployees(); renderPayroll(); renderDashboard(); toast('Data karyawan tersimpan');
+    });
+
+    function renderEmployees(){
+      const tbody = document.querySelector('#tblEmployees tbody'); tbody.innerHTML = '';
+      state.employees.forEach(e => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${e.id}</td><td>${e.nik||'-'}</td><td>${e.name}</td><td>${e.job}</td><td class="text-end">Rp ${formatMoney(e.salary)}</td>
+                        <td><button class="btn btn-sm btn-outline-secondary me-1" onclick="editEmployee('${e.id}')">Edit</button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteEmployee('${e.id}')">Hapus</button></td>`;
+        tbody.appendChild(tr);
+      });
+      populateEmployeeSelects();
+    }
+    window.editEmployee = function(id){
+      const e = state.employees.find(x=>x.id===id); if(!e) return;
+      $('#empId').value = e.id; $('#empNIK').value = e.nik||''; $('#empName').value = e.name; $('#empJob').value = e.job; $('#empSalary').value = e.salary;
+      empModal.show();
+    };
+    window.deleteEmployee = function(id){
+      if(!confirm('Hapus karyawan ini?')) return;
+      state.employees = state.employees.filter(e=>e.id!==id);
+      state.attendance = state.attendance.filter(a=>a.empId !== id);
+      saveState(); renderEmployees(); renderAttendance($('#attMonth').value); renderPayroll(); renderDashboard(); toast('Karyawan dihapus');
+    };
+    function populateEmployeeSelects(){
+      const selEmp = $('#selectEmployee'); const attSel = $('#attEmployeeSelect'); const filterSel = $('#attFilterEmployee');
+      [selEmp, attSel, filterSel].forEach(s => { if(!s) return; s.innerHTML = '<option value="">-- Pilih --</option>'; });
+      state.employees.forEach(e => {
+        if($('#selectEmployee')) $('#selectEmployee').innerHTML += `<option value="${e.id}">${e.name} — ${e.job} (${e.id})</option>`;
+        if($('#attEmployeeSelect')) $('#attEmployeeSelect').innerHTML += `<option value="${e.id}">${e.name} (${e.id})</option>`;
+        if($('#attFilterEmployee')) $('#attFilterEmployee').innerHTML += `<option value="${e.id}">${e.name}</option>`;
+      });
+    }
+
+    // ATTENDANCE
+    const attModal = new bootstrap.Modal(document.getElementById('modalAttendance'));
+    $('#btnNewAttendance').addEventListener('click', ()=>{ clearAttendanceForm(); attModal.show(); });
+    $('#actAddAttendance').addEventListener('click', ()=>{ clearAttendanceForm(); attModal.show(); });
+    function clearAttendanceForm(){ $('#attDateInput').value=''; $('#attEmployeeSelect').value=''; $('#attInInput').value=''; $('#attOutInput').value=''; $('#attStatusInput').value='Hadir'; }
+    $('#formAttendance').addEventListener('submit', (e)=>{
+      e.preventDefault();
+      const date = $('#attDateInput').value; const empId = $('#attEmployeeSelect').value;
+      if(!date || !empId){ alert('Tanggal & Karyawan wajib'); return; }
+      const inTime = $('#attInInput').value || ''; const outTime = $('#attOutInput').value || ''; const status = $('#attStatusInput').value;
+      const rec = { id: 'A' + Math.random().toString(36).slice(2,8).toUpperCase(), date, empId, in: inTime, out: outTime, status };
+      state.attendance.push(rec);
+      saveState();
+      attModal.hide();
+      // show current filtered month
+      const currentMonth = $('#attMonth').value || date.slice(0,7);
+      renderAttendance(currentMonth);
+      renderDashboard();
+      toast('Absensi tersimpan');
+    });
+
+    function renderAttendance(month){
+      month = month || $('#attMonth').value;
+      const tbody = document.querySelector('#tblAttendance tbody'); tbody.innerHTML = '';
+      const filterEmp = $('#attFilterEmployee').value || '';
+      const rows = state.attendance.filter(r => {
+        const matchMonth = month ? r.date.slice(0,7) === month : true;
+        const matchEmp = filterEmp ? r.empId === filterEmp : true;
+        return matchMonth && matchEmp;
+      }).sort((a,b)=> b.date.localeCompare(a.date));
+      rows.forEach(r => {
+        const emp = state.employees.find(e=>e.id===r.empId) || {name:'-'};
+        const tr = document.createElement('tr');
+        // status class
+        let cls = ''; if(r.status==='Hadir') cls='att-hadir'; else if(r.status==='Izin') cls='att-izin'; else if(r.status==='Sakit') cls='att-sakit'; else if(r.status==='Alpha') cls='att-alpha';
+        tr.className = cls;
+        tr.innerHTML = `<td>${r.date}</td><td>${emp.name}</td><td>${r.in || '-'}</td><td>${r.out || '-'}</td><td>${r.status}</td><td><button class="btn btn-sm btn-outline-danger" onclick="deleteAttendance('${r.id}','${month}')">Hapus</button></td>`;
+        tbody.appendChild(tr);
+      });
+
+      // summary
+      const summary = {};
+      rows.forEach(r => { if(r.status === 'Hadir'){ summary[r.empId] = (summary[r.empId] || 0) + 1; } });
+      let html = '';
+      if(Object.keys(summary).length === 0) html = '<div class="small-muted">Belum ada rekap untuk periode ini</div>';
+      else {
+        html = '<ul class="mb-0">';
+        Object.entries(summary).forEach(([empId, cnt]) => {
+          const emp = state.employees.find(e=>e.id===empId) || {name:'-'};
+          html += `<li>${emp.name} — ${cnt} hari hadir</li>`;
+        });
+        html += '</ul>';
+      }
+      $('#attendanceSummary').innerHTML = html;
+    }
+    window.deleteAttendance = function(id, month){
+      if(!confirm('Hapus record absensi?')) return;
+      state.attendance = state.attendance.filter(a => a.id !== id);
+      saveState();
+      renderAttendance(month || $('#attMonth').value);
+      renderDashboard();
+      toast('Record absensi dihapus');
+    };
+    $('#btnFilterAttendance').addEventListener('click', ()=> renderAttendance($('#attMonth').value));
+
+    // PAYROLL
+    $('#selectEmployee').addEventListener('change', ()=>{
+      const empId = $('#selectEmployee').value;
+      if(!empId){ clearPayrollFields(); return; }
+      const emp = state.employees.find(e=>e.id === empId);
+      if(!emp) return;
+      $('#fieldEmpId').value = emp.id;
+      $('#fieldSalary').value = emp.salary;
+      $('#fieldDaily').value = Math.round(emp.salary / 22);
+      const period = $('#payPeriod').value;
+      if(period) { const days = computeDays(emp.id, period); $('#fieldDays').value = days; renderAttendanceTableForPayroll(emp.id, period); }
+      else { $('#fieldDays').value = 0; $('#payAttendanceTable').innerHTML = '<div class="small-muted">Masukkan periode (YYYY-MM) untuk melihat rekap absensi.</div>'; }
+    });
+    $('#payPeriod').addEventListener('change', ()=>{
+      const empId = $('#selectEmployee').value; if(!empId) return;
+      const period = $('#payPeriod').value; const days = computeDays(empId, period);
+      $('#fieldDays').value = days; renderAttendanceTableForPayroll(empId, period);
+    });
+
+    function clearPayrollFields(){
+      $('#fieldEmpId').value = ''; $('#fieldSalary').value = ''; $('#fieldDaily').value = ''; $('#fieldDays').value = '';
+      $('#fieldAllowance').value = 0; $('#fieldAllowanceOther').value = 0; $('#fieldOvertime').value = 0;
+      $('#fieldBPJS').value = 0; $('#fieldInsurance').value = 0; $('#fieldDeduction').value = 0;
+      $('#payPreview').innerHTML = 'Belum ada perhitungan.'; $('#payAttendanceTable').innerHTML = '<div class="small-muted">Pilih karyawan & periode untuk lihat rekap absensi.</div>';
+    }
+
+    function computeDays(empId, period){
+      if(!empId || !period) return 0;
+      if(!/\d{4}-\d{2}/.test(period)) return 0;
+      return state.attendance.filter(a => a.empId === empId && a.date.slice(0,7) === period && a.status === 'Hadir').length;
+    }
+
+    function renderAttendanceTableForPayroll(empId, period){
+      if(!empId || !period){ $('#payAttendanceTable').innerHTML = '<div class="small-muted">Tidak ada data</div>'; return; }
+      const rows = state.attendance.filter(a => a.empId === empId && a.date.slice(0,7) === period).sort((a,b)=> a.date.localeCompare(b.date));
+      if(rows.length === 0){ $('#payAttendanceTable').innerHTML = '<div class="small-muted">Tidak ada rekap absensi untuk periode ini.</div>'; return; }
+      let html = '<table class="table table-sm"><thead><tr><th>Tanggal</th><th>Masuk</th><th>Keluar</th><th>Status</th></tr></thead><tbody>';
+      rows.forEach(r => { html += `<tr><td>${r.date}</td><td>${r.in || '-'}</td><td>${r.out || '-'}</td><td>${r.status}</td></tr>`; });
+      html += '</tbody></table>'; $('#payAttendanceTable').innerHTML = html;
+    }
+
+    $('#btnPreviewCalc').addEventListener('click', previewPayrollCalculation);
+    function previewPayrollCalculation(){
+      const empId = $('#selectEmployee').value; if(!empId){ alert('Pilih karyawan untuk melihat preview'); return; }
+      const base = parseInt($('#fieldSalary').value || 0); const daily = parseInt($('#fieldDaily').value || 0);
+      const days = parseInt($('#fieldDays').value || 0); const allowance = parseInt($('#fieldAllowance').value || 0);
+      const allowanceOther = parseInt($('#fieldAllowanceOther').value || 0); const overtimeHours = parseFloat($('#fieldOvertime').value || 0);
+      const overtimeRate = Math.round((base / 173) * 1.5); const overtime = Math.round(overtimeRate * overtimeHours);
+      const bpjs = parseInt($('#fieldBPJS').value || 0); const insurance = parseInt($('#fieldInsurance').value || 0);
+      const deduction = parseInt($('#fieldDeduction').value || 0);
+      const gross = (daily * days) + allowance + allowanceOther + overtime; const total = gross - (bpjs + insurance + deduction);
+
+      // slip small attendance summary
+      const period = $('#payPeriod').value || '';
+      const totalHadirs = computeDays(empId, period);
+
+      let html = `<div class="row"><div class="col-md-6"><div class="mb-1 small-muted">Gaji Pokok (basis)</div><div class="fw-semibold">Rp ${formatMoney(base)}</div></div>
+                  <div class="col-md-6"><div class="mb-1 small-muted">Upah Harian</div><div class="fw-semibold">Rp ${formatMoney(daily)}</div></div></div>
+                  <div class="row mt-2"><div class="col-md-6"><div class="mb-1 small-muted">Jumlah Hadir</div><div>${days} hari</div></div>
+                  <div class="col-md-6"><div class="mb-1 small-muted">Lembur (jam)</div><div>${overtimeHours} jam — Rp ${formatMoney(overtime)}</div></div></div>
+                  <div class="row mt-2"><div class="col-md-6"><div class="mb-1 small-muted">Tunjangan</div><div>Rp ${formatMoney(allowance + allowanceOther)}</div></div>
+                  <div class="col-md-6"><div class="mb-1 small-muted">Gross</div><div class="fw-semibold">Rp ${formatMoney(gross)}</div></div></div>
+                  <div class="row mt-2"><div class="col-md-6"><div class="mb-1 small-muted">Potongan (BPJS + Asuransi + Lain)</div><div>Rp ${formatMoney(bpjs + insurance + deduction)}</div></div>
+                  <div class="col-md-6"><div class="mb-1 small-muted">Total Diterima</div><div class="fw-semibold">Rp ${formatMoney(total)}</div></div></div>
+                  <div class="mt-3 small-muted">Rekap hadir periode: ${period || '-'} — Total Hadir: ${totalHadirs} hari</div>`;
+      $('#payPreview').innerHTML = html;
+    }
+
+    $('#formPayroll').addEventListener('submit', (e)=>{
+      e.preventDefault();
+      const empId = $('#selectEmployee').value; if(!empId){ alert('Pilih karyawan'); return; }
+      const period = $('#payPeriod').value; if(!/\d{4}-\d{2}/.test(period)){ alert('Periode harus format YYYY-MM'); return; }
+      const date = $('#payDate').value || new Date().toISOString().slice(0,10);
+      const base = parseInt($('#fieldSalary').value || 0); const daily = parseInt($('#fieldDaily').value || Math.round(base/22));
+      const days = parseInt($('#fieldDays').value || 0); const allowance = parseInt($('#fieldAllowance').value || 0);
+      const allowanceOther = parseInt($('#fieldAllowanceOther').value || 0); const overtimeHours = parseFloat($('#fieldOvertime').value || 0);
+      const overtimeRate = Math.round((base / 173) * 1.5); const overtime = Math.round(overtimeRate * overtimeHours);
+      const bpjs = parseInt($('#fieldBPJS').value || 0); const insurance = parseInt($('#fieldInsurance').value || 0);
+      const deduction = parseInt($('#fieldDeduction').value || 0);
+      const gross = (daily * days) + allowance + allowanceOther + overtime; const total = gross - (bpjs + insurance + deduction);
+      const pid = 'P' + Math.random().toString(36).slice(2,8).toUpperCase();
+      state.payrolls.push({ id: pid, empId, period, date, base, daily, days, allowance, allowanceOther, overtime, bpjs, insurance, deduction, gross, total });
+      saveState(); renderPayroll(); renderDashboard(); toast('Penggajian tersimpan'); openSlip(pid);
+    });
+
+    function renderPayroll(){
+      populateEmployeeSelects();
+      const tbody = document.querySelector('#tblPayrollHistory tbody'); tbody.innerHTML = '';
+      state.payrolls.slice().reverse().forEach(p => {
+        const emp = state.employees.find(e=>e.id === p.empId) || {name:'-'};
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${p.id}</td><td>${emp.name}</td><td>${p.period}</td><td class="text-end">${formatMoney(p.total)}</td><td><button class="btn btn-sm btn-outline-primary" onclick="openSlip('${p.id}')">Slip</button></td>`;
+        tbody.appendChild(tr);
+      });
+      $('#payPreview').innerHTML = 'Belum ada perhitungan.'; $('#payAttendanceTable').innerHTML = '<div class="small-muted">Pilih karyawan & periode untuk lihat rekap absensi.</div>';
+    }
+
+    // SLIP & PRINT
+    function openSlip(payrollId){
+      const p = state.payrolls.find(x=>x.id === payrollId); if(!p){ alert('Slip tidak ditemukan'); return; }
+      const emp = state.employees.find(e=>e.id === p.empId) || {};
+      // attendance summary for the period
+      const totalHadirs = computeDays(p.empId, p.period);
+      const slipHtml = `<div>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div><h5 class="mb-0">${emp.name || '-'}</h5><div class="small-muted">${emp.job || ''} — ${emp.id || ''}</div></div>
+          <div class="text-end mono">Slip ID: ${p.id}</div>
+        </div>
+        <div class="small-muted mb-2">${p.period} | Tanggal Bayar: ${p.date}</div>
+        <table class="table table-borderless">
+          <tbody>
+            <tr><td>Gaji Pokok (basis)</td><td class="text-end">Rp ${formatMoney(p.base)}</td></tr>
+            <tr><td>Upah Harian</td><td class="text-end">Rp ${formatMoney(p.daily)}</td></tr>
+            <tr><td>Jumlah Hadir</td><td class="text-end">${p.days} hari</td></tr>
+            <tr><td>Rekap Hadir (periode)</td><td class="text-end">${totalHadirs} hari</td></tr>
+            <tr><td>Tunjangan</td><td class="text-end">Rp ${formatMoney(p.allowance + p.allowanceOther)}</td></tr>
+            <tr><td>Lembur</td><td class="text-end">Rp ${formatMoney(p.overtime)}</td></tr>
+            <tr><td>Gross</td><td class="text-end"><strong>Rp ${formatMoney(p.gross)}</strong></td></tr>
+            <tr><td>BPJS</td><td class="text-end">Rp ${formatMoney(p.bpjs)}</td></tr>
+            <tr><td>Asuransi</td><td class="text-end">Rp ${formatMoney(p.insurance)}</td></tr>
+            <tr><td>Potongan Lain</td><td class="text-end">Rp ${formatMoney(p.deduction)}</td></tr>
+            <tr><td><strong>Total Diterima</strong></td><td class="text-end"><strong>Rp ${formatMoney(p.total)}</strong></td></tr>
+          </tbody>
+        </table>
+        <div class="small-muted">Catatan: Perhitungan tunjangan/lembur disesuaikan secara manual berdasarkan input.</div>
+      </div>`;
+      $('#modalSlipBody').innerHTML = slipHtml;
+      new bootstrap.Modal(document.getElementById('modalSlip')).show();
+    }
+    $('#btnPrintSlip').addEventListener('click', ()=>{
+      const content = document.getElementById('modalSlipBody').innerHTML;
+      const w = window.open('', '_blank');
+      w.document.write(`<html><head><title>Slip Gaji</title><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"></head><body style="padding:20px">${content}</body></html>`);
+      w.document.close(); w.print();
+    });
+
+    // HELP & RESET
+    $('#btnHelp').addEventListener('click', ()=>{
+      alert('Petunjuk singkat:\\n1) Tambah karyawan di menu Data Karyawan.\\n2) Input absensi di menu Absensi (pilih bulan jika ingin rekap).\\n3) Di menu Penggajian pilih karyawan -> masukkan periode (YYYY-MM) -> preview -> Hitung & Simpan.\\n4) Slip dapat dicetak melalui tombol Print di jendela Slip.');
+    });
+    $('#btnReset').addEventListener('click', ()=>{
+      if(!confirm('Reset semua data ke kondisi awal demo?')) return;
+      state = JSON.parse(JSON.stringify(initialState));
+      saveState(); renderEmployees(); renderAttendance($('#attMonth').value); renderPayroll(); renderDashboard(); toast('Data telah direset ke kondisi awal');
+    });
+
+    // UTIL
+    function formatMoney(n){ return (n || 0).toLocaleString('id-ID'); }
+  </script>
+</body>
+</html>
